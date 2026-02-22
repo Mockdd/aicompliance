@@ -7,7 +7,7 @@ pip install uvicorn streamlit -q
 
 echo "🚀 FastAPI 서버 시작..."
 cd /workspaces/aicompliance/web
-uvicorn main:app --host 0.0.0.0 --port 8000 &
+python -m uvicorn main:app --host 0.0.0.0 --port 8000 &
 
 echo "⏳ FastAPI 준비 중..."
 sleep 3
