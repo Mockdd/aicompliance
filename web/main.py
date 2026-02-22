@@ -14,7 +14,9 @@ from typing import List, Optional
 import uvicorn
 
 # 프로젝트 루트 경로를 sys.path에 추가 (상대 임포트 지원)
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+# 레포 최상위 경로를 추가 (src 패키지 접근용)
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(ROOT_DIR)
 
 # rag_engine은 무거운 모델(Cross-Encoder)을 로드하므로
 # 앱 시작 시 한 번만 초기화하여 전역 변수로 관리합니다.
