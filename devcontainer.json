@@ -2,10 +2,8 @@
   "name": "AI Compliance RAG",
   "image": "mcr.microsoft.com/devcontainers/python:3.11",
 
-  // Codespace 시작 시 자동 실행 (패키지 설치)
-  "postCreateCommand": "pip install -r web/requirements.txt",
+  "postCreateCommand": "pip install -r web/requirements.txt && echo '✅ 설치 완료! bash start.sh 로 서버를 시작하세요.'",
 
-  // 추천 VS Code 익스텐션 (Codespace 열릴 때 자동 설치)
   "customizations": {
     "vscode": {
       "extensions": [
@@ -16,7 +14,6 @@
     }
   },
 
-  // Streamlit(8501), FastAPI(8000) 포트 자동 포워딩
   "forwardPorts": [8000, 8501],
   "portsAttributes": {
     "8000": { "label": "FastAPI", "onAutoForward": "notify" },
