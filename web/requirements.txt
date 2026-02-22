@@ -1,0 +1,14 @@
+fastapi
+uvicorn[standard]
+streamlit
+requests
+langchain
+langchain-core
+langchain-openai
+langchain-neo4j
+neo4j
+sentence-transformers
+python-dotenv
+numpy
+pydantic
+httpx
