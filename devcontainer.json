@@ -1,0 +1,33 @@
+{
+  "name": "AI Compliance RAG",
+  "image": "mcr.microsoft.com/devcontainers/python:3.11",
+
+  // Codespace 시작 시 자동 실행 (패키지 설치)
+  "postCreateCommand": "pip install -r requirements.txt",
+
+  // Codespaces Secrets → 컨테이너 환경변수로 자동 주입
+  "containerEnv": {
+    "NEO4J_URI": "${localEnv:NEO4J_URI}",
+    "NEO4J_USERNAME": "${localEnv:NEO4J_USERNAME}",
+    "NEO4J_PASSWORD": "${localEnv:NEO4J_PASSWORD}",
+    "OPENAI_API_KEY": "${localEnv:OPENAI_API_KEY}"
+  },
+
+  // 추천 VS Code 익스텐션 (Codespace 열릴 때 자동 설치)
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "mikestead.dotenv"
+      ]
+    }
+  },
+
+  // Streamlit(8501), FastAPI(8000) 포트 자동 포워딩
+  "forwardPorts": [8000, 8501],
+  "portsAttributes": {
+    "8000": { "label": "FastAPI", "onAutoForward": "notify" },
+    "8501": { "label": "Streamlit", "onAutoForward": "openBrowser" }
+  }
+}
