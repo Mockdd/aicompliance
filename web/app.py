@@ -240,6 +240,10 @@ details summary {
 .sb-logo-sub  { font-size: 0.71rem; color: #94A3B8; }
 
 hr { border-color: #E2E8F8 !important; }
+
+/* ── 로딩 아이콘 숨기기 ── */
+div[data-testid="stStatusWidget"] { display: none !important; }
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -336,7 +340,6 @@ def render_message(msg: Dict):
 
         st.markdown(f"""
         <div class="msg-ai-row">
-            <div class="msg-ai-avatar">🪄</div>
             <div class="msg-ai-content">
                 <div class="msg-ai-name">AI Compliance Assistant</div>
                 <div class="msg-ai-bubble">{content}</div>
@@ -345,14 +348,9 @@ def render_message(msg: Dict):
         </div>""", unsafe_allow_html=True)
 
         if sources or sub_queries:
-            label = f"📚 법적 근거 {len(sources)}건" + (" · 분석 과정" if sub_queries else "")
-            with st.expander(label):
-                if sub_queries:
-                    st.markdown("**🔀 질문 분석 (서브쿼리)**")
-                    st.markdown(render_subqueries_html(sub_queries), unsafe_allow_html=True)
-                    if sources:
-                        st.markdown("---")
-                if sources:
+            if sources:
+                label = f"📚 법적 근거 {len(sources)}건"
+                with st.expander(label):
                     st.markdown(render_sources_html(sources), unsafe_allow_html=True)
 
 
@@ -364,7 +362,7 @@ with st.sidebar:
     <div class="sb-logo">
         <div class="sb-logo-icon">🪄</div>
         <div>
-            <div class="sb-logo-name">AI Compliance</div>
+            <div class="sb-logo-name">AI Compliance Checker</div>
             <div class="sb-logo-sub">AI 규제 검토 챗봇</div>
         </div>
     </div>""", unsafe_allow_html=True)
