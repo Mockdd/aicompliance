@@ -1,0 +1,479 @@
+"""
+app.py - AI Compliance Assistant Streamlit UI
+"""
+
+import streamlit as st
+import requests
+import re
+from datetime import datetime
+from typing import List, Dict
+
+# ─────────────────────────────────────────
+# 설정
+# ─────────────────────────────────────────
+API_BASE_URL = "http://localhost:8000"
+CHAT_ENDPOINT = f"{API_BASE_URL}/chat"
+
+st.set_page_config(
+    page_title="AI Compliance Checker",
+    page_icon="⚖️",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
+# ─────────────────────────────────────────
+# CSS - UI 고도화 & 광학적 밸런스 정렬 패치
+# ─────────────────────────────────────────
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700;800&display=swap');
+
+* { box-sizing: border-box; }
+
+/* ── 기본 테마 및 폰트 ── */
+html, body, .stApp {
+    font-family: 'Pretendard', -apple-system, sans-serif !important;
+}
+:root { color-scheme: light !important; }
+[data-testid="stAppViewContainer"], [data-testid="stSidebar"] {
+    background-color: #F4F7FD !important;
+    color: #1a1f36 !important;
+}
+
+/* ── 1. 스트림릿 순정 헤더 복구 (사이드바 버튼 증발 완벽 해결!) ── */
+.stDeployButton { display: none !important; }
+
+/* 💡 모든 제목 태그에 붙는 불필요한 링크(🔗) 완전 박멸 */
+a.header-anchor, h1 a, h2 a, h3 a, h4 a, h5 a, h6 a { 
+    display: none !important; 
+    pointer-events: none !important; 
+}
+
+/* ── 사이드바 ── */
+section[data-testid="stSidebar"] {
+    background-color: #FFFFFF !important;
+    border-right: 1px solid #E2E8F8;
+}
+section[data-testid="stSidebar"] .stScrollToBottomContainer,
+section[data-testid="stSidebar"] > div:first-child {
+    padding-top: 0rem !important;
+}
+[data-testid="stSidebarUserContent"] {
+    padding-bottom: 1.5rem !important; 
+}
+
+/* ── 2. 사이드바 로고 영역 (만족하신 코드 그대로 영구 보존) ── */
+.sb-logo {
+    display: flex; align-items: center; gap: 14px;
+    margin-top: -1.5rem !important; 
+    padding-bottom: 1.5rem !important; 
+    border-bottom: 1px solid #E2E8F8 !important;
+    margin-bottom: 0 !important;
+}
+.sb-logo-icon {
+    width: 48px; height: 48px; 
+    flex-shrink: 0; 
+    background: linear-gradient(135deg, #1B4FD8, #3B82F6);
+    border-radius: 12px; display: flex; align-items: center; justify-content: center;
+    font-size: 1.4rem; color: white;
+    box-shadow: 0 4px 12px rgba(27,79,216,0.2);
+}
+.sb-logo-text {
+    height: 48px; 
+    display: flex; flex-direction: column; 
+    justify-content: space-between; 
+    padding: 4px 0 2px 0; 
+}
+.sb-logo-name { font-size: 1.1rem; font-weight: 800; color: #1B4FD8; line-height: 1.1; margin: 0;} 
+.sb-logo-sub  { font-size: 0.8rem; color: #94A3B8; line-height: 1.1; margin: 0;}
+
+/* ── 사이드바 버튼 & 예시질문 ── */
+.sidebar-title-wrapper {
+    text-align: center; margin-bottom: 1.2rem; margin-top: 0 !important;
+}
+.sidebar-title-badge {
+    display: inline-block;
+    background: rgba(255, 255, 255, 0.6);
+    border: 1px solid rgba(191, 219, 254, 0.8);
+    box-shadow: 0 4px 12px rgba(27,79,216,0.06);
+    backdrop-filter: blur(4px);
+    color: #1B4FD8;
+    font-size: 1.05rem; font-weight: 800; 
+    padding: 8px 20px; 
+    border-radius: 24px !important;
+}
+section[data-testid="stSidebar"] .stButton > button {
+    border-radius: 24px !important; 
+    background: rgba(255, 255, 255, 0.6) !important;
+    border: 1px solid rgba(191, 219, 254, 0.6) !important;
+    box-shadow: 0 4px 12px rgba(27,79,216,0.04) !important;
+    backdrop-filter: blur(4px) !important;
+    font-size: 0.82rem !important; 
+    color: #1E293B !important;
+    padding: 10px 14px !important;
+    text-align: center !important; 
+    transition: all 0.2s ease !important;
+}
+section[data-testid="stSidebar"] .stButton > button:hover {
+    background: #FFFFFF !important;
+    border-color: #1B4FD8 !important;
+    color: #1B4FD8 !important;
+    box-shadow: 0 6px 16px rgba(27,79,216,0.12) !important;
+    transform: translateY(-2px);
+}
+
+/* ── 메인 컨텐츠 영역 ── */
+.block-container {
+    padding-top: 3.5rem !important; 
+    padding-bottom: 5rem !important; 
+    max-width: 900px !important;
+}
+
+/* ── 3. 채팅창 메인 헤더 ── */
+.app-header {
+    display: flex; align-items: center; gap: 18px; 
+    padding-top: 10px !important; 
+    padding-bottom: 1.5rem !important;
+    margin-bottom: 2rem !important;
+    border-bottom: 2px solid #E2E8F8 !important;
+}
+.app-header-icon {
+    width: 64px; height: 64px; 
+    flex-shrink: 0; 
+    background: linear-gradient(135deg, #1B4FD8, #3B82F6);
+    border-radius: 16px; 
+    display: flex; align-items: center; justify-content: center;
+    font-size: 2rem; box-shadow: 0 4px 16px rgba(27,79,216,0.28); 
+}
+.app-header-text {
+    height: 64px; 
+    display: flex; flex-direction: column; 
+    justify-content: space-between; 
+    padding: 0 !important; 
+}
+.app-header h1 {
+    font-size: 1.65rem !important; 
+    font-weight: 800 !important;
+    color: #1B4FD8 !important; letter-spacing: -0.5px;
+    line-height: 1.0 !important; 
+    margin: 0 !important; 
+    margin-top: -15px !important; 
+}
+.app-header p {
+    font-size: 0.95rem !important; 
+    color: #64748B; 
+    line-height: 1.0 !important;
+    margin: 0 !important; 
+    
+    /* 💡 강력한 치트키 발동! */
+    position: relative !important;
+    top: -5px !important; 
+}
+
+/* ── 채팅 래퍼 및 버블 ── */
+.chat-wrapper { display: flex; flex-direction: column; gap: 18px; margin-bottom: 20px; }
+
+.msg-user-row {
+    display: flex; justify-content: flex-end; align-items: flex-end; gap: 8px;
+}
+.msg-user-bubble {
+    background: linear-gradient(135deg, #1B4FD8, #2563EB);
+    color: #FFFFFF; border-radius: 20px 20px 4px 20px;
+    padding: 14px 18px; max-width: 70%;
+    font-size: 1.0rem; line-height: 1.6;
+    box-shadow: 0 3px 12px rgba(27,79,216,0.22); word-break: break-word;
+}
+.msg-time {
+    font-size: 0.8rem; color: #94A3B8; white-space: nowrap; margin-bottom: 4px;
+}
+
+.msg-ai-row {
+    display: flex; justify-content: flex-start; align-items: flex-start; gap: 10px;
+}
+.msg-ai-content { max-width: 85%; }
+.msg-ai-name {
+    font-size: 1.0rem; font-weight: 700;
+    color: #1B4FD8; margin-bottom: 6px; letter-spacing: 0.3px;
+}
+.msg-ai-bubble {
+    background: #FFFFFF; color: #1E293B;
+    border-radius: 4px 20px 20px 20px;
+    padding: 15px 18px;
+    font-size: 1.0rem; line-height: 1.7;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+    border: 1px solid #E2E8F8; word-break: break-word;
+}
+
+/* ── 참고 조항 카드 ── */
+.source-label {
+    font-size: 0.85rem; font-weight: 700; color: #1B4FD8; margin: 10px 0 8px 0;
+}
+.source-card {
+    background: #F8FAFF; border: 1px solid #DBEAFE;
+    border-left: 4px solid #1B4FD8; border-radius: 8px;
+    padding: 12px 14px; margin-bottom: 8px;
+}
+.source-card-header {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 6px;
+}
+.source-tag {
+    background: #DBEAFE; color: #1B4FD8;
+    font-size: 0.85rem; font-weight: 700;
+    padding: 3px 8px; border-radius: 4px;
+}
+.source-id { font-weight: 700; color: #1E293B; font-size: 1.0rem; }
+.source-title-text { font-size: 0.85rem; color: #64748B; }
+.source-excerpt {
+    font-size: 0.85rem; color: #475569; line-height: 1.6;
+    border-top: 1px solid #E2E8F8; padding-top: 8px; margin-top: 6px;
+}
+
+/* ── 제미나이 스타일 둥근 입력창 ── */
+[data-testid="stBottom"] {
+    background-color: transparent !important;
+    padding-bottom: 0 !important; 
+}
+[data-testid="stBottom"] > div {
+    padding-bottom: 1rem !important; 
+}
+.stChatInput { background-color: transparent !important; }
+.stChatInput > div, .stChatInput textarea { background-color: #FFFFFF !important; }
+.stChatInput > div {
+    border: 2px solid #BFDBFE !important; 
+    border-radius: 24px !important; 
+    box-shadow: 0 -30px 40px 15px #F4F7FD, 0 2px 12px rgba(27,79,216,0.08) !important;
+}
+.stChatInput > div:focus-within {
+    border-color: #1B4FD8 !important; box-shadow: 0 -30px 40px 15px #F4F7FD, 0 2px 18px rgba(27,79,216,0.15) !important;
+}
+button[data-testid="stChatInputSubmit"] svg {
+    stroke: #1B4FD8 !important; fill: #1B4FD8 !important; color: #1B4FD8 !important;
+}
+button[data-testid="stChatInputSubmit"]:hover, 
+button[data-testid="stChatInputSubmit"]:focus,
+button[data-testid="stChatInputSubmit"]:active {
+    background-color: #EFF6FF !important; border-color: transparent !important;
+}
+
+/* ── 기타 ── */
+details { background: transparent !important; border: none !important; }
+details summary {
+    font-size: 0.95rem !important; font-weight: 600 !important;
+    color: #1B4FD8 !important; padding: 6px 0 !important;
+}
+/* 💡 아래 여백(bottom)만 20px로 확 줄여서 쫀쫀하게 만듦 (위 64, 오/왼 20, 아래 20) */
+.empty-state { text-align: center; padding: 40px 20px 0px 20px; color: #94A3B8; }
+.empty-state-icon { font-size: 3rem; margin-bottom: 14px; }
+.empty-state h3 { font-size: 1.2rem; font-weight: 700; color: #1E293B; margin-bottom: 8px; }
+.empty-state p { font-size: 1.0rem; line-height: 1.65; }
+hr { border-color: #E2E8F8 !important; margin: 1.5rem 0 !important; }
+div[data-testid="stStatusWidget"] { display: none !important; }
+</style>
+""", unsafe_allow_html=True)
+
+
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+def build_history_payload() -> List[Dict]:
+    history = []
+    for msg in st.session_state.messages[:-1]:
+        role = msg["role"]
+        content = msg["content"]
+        if role in ("user", "assistant"):
+            history.append({"role": role, "content": content})
+    return history
+
+def call_chat(question: str) -> Dict:
+    history = build_history_payload()
+    try:
+        r = requests.post(
+            CHAT_ENDPOINT,
+            json={"question": question, "history": history},
+            timeout=120,
+        )
+        r.raise_for_status()
+        return r.json()
+    except Exception as e:
+        return {"error": f"오류 발생: {str(e)}"}
+
+def now_str() -> str:
+    return datetime.now().strftime("%H:%M")
+
+def render_sources_html(sources: List[Dict]) -> str:
+    if not sources:
+        return ""
+    html = '<div class="source-label">참고 조항 상세</div>'
+    for src in sources:
+        raw_id = src.get("source_id", "")
+        if "::" in raw_id:
+            law_name, article = raw_id.split("::", 1)
+        else:
+            law_name, article = "관련 법안", raw_id
+
+        title = f'<span class="source-title-text"> — {src.get("title","")}</span>' if src.get("title") else ""
+        
+        excerpt = src.get("excerpt", "")
+        exc_html = f'<div class="source-excerpt">"{excerpt}"</div>' if excerpt else ""
+        
+        html += f"""
+        <div class="source-card">
+            <div class="source-card-header">
+                <span class="source-tag">{law_name}</span>
+                <span class="source-id">{article}</span>{title}
+            </div>{exc_html}
+        </div>"""
+    return html
+
+def render_message(msg: Dict):
+    role = msg["role"]
+    content = msg["content"]
+    t = msg.get("time", "")
+
+    if role == "user":
+        st.markdown(f"""
+        <div class="msg-user-row">
+            <span class="msg-time">{t}</span>
+            <div class="msg-user-bubble">{content}</div>
+        </div>""", unsafe_allow_html=True)
+    else:
+        sources = msg.get("sources", [])
+        
+        display_content = content.replace("\n", "<br>")
+        if "- 규제 대상:" in display_content:
+            display_content = re.sub(
+                r'(<br>\s*)+-\s*규제 대상:', 
+                "<hr style='margin: 0px 0 1.2rem 0; border: none; border-top: 1px solid #E2E8F8;'>- 규제 대상:", 
+                display_content
+            )
+
+        st.markdown(f"""
+        <div class="msg-ai-row">
+            <div class="msg-ai-content">
+                <div class="msg-ai-name">AI Compliance Assistant</div>
+                <div class="msg-ai-bubble">{display_content}</div>
+                <div class="msg-time" style="margin-top:5px;">{t}</div>
+            </div>
+        </div>""", unsafe_allow_html=True)
+
+        if sources:
+            filtered_sources = []
+            for src in sources:
+                raw_id = src.get("source_id", "")
+                excerpt = src.get("excerpt", "")
+                
+                if len(excerpt.strip()) < 15 or excerpt.strip().lower() in raw_id.strip().lower():
+                    continue
+                
+                article_num = raw_id.split("::")[-1] if "::" in raw_id else raw_id
+                numbers = re.findall(r'\d+', article_num)
+                
+                if article_num in content or any(num in content for num in numbers):
+                    filtered_sources.append(src)
+            
+            if filtered_sources:
+                label = f"참고 조항 {len(filtered_sources)}건"
+                with st.expander(label):
+                    st.markdown(render_sources_html(filtered_sources), unsafe_allow_html=True)
+
+# ─────────────────────────────────────────
+# 사이드바
+# ─────────────────────────────────────────
+with st.sidebar:
+    st.markdown("""
+    <div class="sb-logo">
+        <div class="sb-logo-icon">🪄</div>
+        <div class="sb-logo-text">
+            <div class="sb-logo-name">AI Compliance Checker</div>
+            <div class="sb-logo-sub">AI 규제 검토 어시스턴트</div>
+        </div>
+    </div>""", unsafe_allow_html=True)
+
+    st.markdown("<div style='height: 3rem;'></div>", unsafe_allow_html=True)
+
+    st.markdown("""
+    <div class="sidebar-title-wrapper">
+        <span class="sidebar-title-badge">추천 질문</span>
+    </div>
+    """, unsafe_allow_html=True)
+
+    examples = [
+        "채용 AI가 고위험으로 분류되나요?",
+        "생체인식 AI의 EU 내 사용 조건은?",
+        "고위험 AI 시스템의 적합성 평가 절차",
+        "AI 규정 위반 시 최대 과징금은?",
+    ]
+    for ex in examples:
+        if st.button(ex, key=f"ex_{ex[:14]}", use_container_width=True):
+            st.session_state["prefill"] = ex
+
+    st.markdown("<div style='height: 0.5rem;'></div>", unsafe_allow_html=True)
+    
+    st.markdown("---")
+    
+    if st.button("대화 초기화", use_container_width=True, key="clear"):
+        st.session_state.messages = []
+        st.rerun()
+
+# ─────────────────────────────────────────
+# 메인 헤더 & 입력창 처리
+# ─────────────────────────────────────────
+st.markdown("""
+<div class="app-header">
+    <div class="app-header-icon">🪄</div>
+    <div class="app-header-text">
+        <h1>AI COMPLIANCE CHECKER</h1>
+        <p>EU AI Act · 한국 AI 기본법 기반 규제 검토 및 의무 사항 안내</p>
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+prefill = st.session_state.pop("prefill", None)
+placeholder_text = prefill if prefill else "규제가 궁금한 AI 시스템에 대해 질문하세요..."
+user_input = st.chat_input(placeholder_text)
+
+if prefill and not user_input:
+    user_input = prefill
+
+if user_input and user_input.strip():
+    question = user_input.strip()
+    st.session_state.messages.append({
+        "role": "user",
+        "content": question,
+        "time": now_str(),
+    })
+
+if not st.session_state.messages:
+    st.markdown("""
+    <div class="empty-state">
+        <div class="empty-state-icon">⚖️</div>
+        <h3>무엇이든 질문하세요</h3>
+        <p>EU AI Act 및 한국 인공지능기본법 관련 규제 여부, 의무 사항, 위반 시 벌칙 등<br>
+        AI 컴플라이언스에 관한 질문에 참고 조항과 함께 답변해드립니다.</p>
+    </div>""", unsafe_allow_html=True)
+else:
+    st.markdown('<div class="chat-wrapper">', unsafe_allow_html=True)
+    for msg in st.session_state.messages:
+        render_message(msg)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+if user_input and user_input.strip():
+    with st.spinner("관련 조항을 분석하는 중..."):
+        result = call_chat(question)
+
+    if "error" in result:
+        answer = result["error"]
+        sources = []
+    else:
+        answer = result.get("answer", "답변을 생성하지 못했습니다.")
+        answer = answer.replace("[Context]", "").replace("제공된 데이터", "관련 법안")
+        sources = result.get("sources", [])
+
+    st.session_state.messages.append({
+        "role": "assistant",
+        "content": answer,
+        "sources": sources,
+        "time": now_str(),
+    })
+    
+    st.rerun()
