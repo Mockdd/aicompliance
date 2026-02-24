@@ -9,7 +9,7 @@ os.environ["USE_TORCH"] = "1"   # PyTorch만 사용하도록 강제
 
 import json
 import numpy as np
-# 프로젝트 최상위 폴더(AIcompliance)를 파이썬 경로에 강제로 추가하는 코드
+# 프로젝트 최상위 폴더를 파이썬 경로에 강제로 추가하는 코드
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from typing import Tuple, List, Dict
@@ -29,12 +29,11 @@ class AIComplianceRAG:
         print("⏳ Cross-Encoder 리랭킹 모델 로딩 중...")
         self.reranker = CrossEncoder('Dongjin-kr/ko-reranker') 
         
-        # 💡 사전에 구축한 50개 QA JSON 셋 불러오기
+        # 💡 사전에 구축한 QA JSON 셋 불러오기
         self.qa_dataset = self.load_qa_dataset()
 
     def load_qa_dataset(self) -> List[dict]:
-        """JSON 파일로 저장된 50개의 QA 셋을 불러옵니다."""
-        # 실제 JSON 파일이 위치한 경로로 맞춰주세요.
+        """JSON 파일로 저장된 QA 셋을 불러옵니다."""
         file_path = os.path.join(os.path.dirname(__file__), 'qa_dataset.json')
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
@@ -48,11 +47,14 @@ class AIComplianceRAG:
         if not self.qa_dataset:
             return ""
         
-        # 질문 간의 유사도를 비교하여 가장 비슷한 QA 셋을 찾음
         query_vector = self.embeddings.embed_query(query)
         scored_examples = []
         
         for qa in self.qa_dataset:
+            # 💡 [커닝 방지]: 지금 풀고 있는 시험 문제와 똑같은 질문은 참고 예시에서 제외!
+            if qa['question'].strip() == query.strip():
+                continue
+                
             qa_vector = self.embeddings.embed_query(qa['question'])
             # 코사인 유사도 계산
             similarity = np.dot(query_vector, qa_vector) / (np.linalg.norm(query_vector) * np.linalg.norm(qa_vector))
@@ -99,18 +101,23 @@ class AIComplianceRAG:
         return sub_queries
 
     def translate_query(self, query: str) -> str:
-        trans_prompt = ChatPromptTemplate.from_template(
-            "Translate the following Korean query into English legal terms (EU AI Act style). "
-            "Just output the translated text without any explanation.\nQuery: {query}"
-        )
+        # 💡 [핵심 수술 1]: 단순 번역을 넘어, 영어 공식 법률 용어(Emotion Recognition 등)를 덧붙여 검색력을 폭발시킵니다!
+        trans_prompt = ChatPromptTemplate.from_template("""
+        Translate the following Korean query into English legal terms suitable for the EU AI Act and Korea AI Act.
+        Also, strongly expand the query by adding relevant official legal keywords (e.g., 'Emotion Recognition', 'Prohibited practice', 'Biometric', 'High-Risk', 'Penalty', 'Fines').
+        Just output the translated text and expanded keywords without any explanation.
+        
+        Query: {query}
+        """)
         chain = trans_prompt | self.llm | StrOutputParser()
         return chain.invoke({"query": query})
 
-    def retrieve_and_rerank_context(self, sub_queries: List[str], final_k: int = 5) -> str:
+    def retrieve_and_rerank_context(self, query: str, sub_queries: List[str], final_k: int = 10) -> str:
         """[Step 2] 벡터 검색 후 Cross-Encoder로 정밀하게 재정렬(Re-ranking)합니다."""
         
+        # 💡 [핵심 수술 2]: 1차 그물망을 12개 -> 30개로 대폭 늘려서 구석에 박힌 페널티 조항까지 다 끌어옵니다!
         cypher_query = """
-        CALL db.index.vector.queryNodes('chunk_embedding', 12, $query_vector)
+        CALL db.index.vector.queryNodes('chunk_embedding', 30, $query_vector)
         YIELD node AS chunk, score
         MATCH (parent)-[:HAS_CHUNK]->(chunk)
         
@@ -151,8 +158,12 @@ class AIComplianceRAG:
         """
         
         unique_chunks = {}
+        translated_sq_list = [] # 리랭커에게 넘겨줄 영어 키워드 수집통
+        
         for sq in sub_queries:
             translated_query = self.translate_query(sq)
+            translated_sq_list.append(translated_query) # 수집
+            
             query_vector = self.embeddings.embed_query(translated_query)
             results = self.graph.query(cypher_query, params={"query_vector": query_vector})
             
@@ -167,7 +178,10 @@ class AIComplianceRAG:
         print(f"👉 1차 벡터 검색 완료: 총 {len(unique_chunks)}개의 조항 확보. 리랭킹 진행 중...")
 
         chunk_list = list(unique_chunks.values())
-        pairs = [[sub_queries[0], item['chunk_text']] for item in chunk_list]
+        
+        # 💡 [핵심 수술 3]: 리랭커에게 '원본 한국어' + '번역/확장된 영어 법률 용어'를 모두 넘겨주어 채점 정확도를 극대화합니다.
+        combined_rerank_query = query + "\n" + "\n".join(translated_sq_list)
+        pairs = [[combined_rerank_query, item['chunk_text']] for item in chunk_list]
         scores = self.reranker.predict(pairs)
         
         scored_results = sorted(zip(scores, chunk_list), key=lambda x: x[0], reverse=True)
@@ -195,7 +209,6 @@ class AIComplianceRAG:
 
     def generate_answer(self, query: str, history: List[Dict] = None) -> Tuple[str, str]:
         
-        # 이전 대화 내용을 하나의 문자열로 포맷팅
         history_text = ""
         if history:
             for msg in history:
@@ -205,41 +218,45 @@ class AIComplianceRAG:
             history_text = "이전 대화 없음."
 
         sub_queries = self.analyze_and_route_query(query)
-        context = self.retrieve_and_rerank_context(sub_queries, final_k=8)
+        
+        # 💡 넉넉하게 10개의 핵심 조항을 가져옵니다.
+        context = self.retrieve_and_rerank_context(query, sub_queries, final_k=10)
         few_shot_examples = self.get_few_shot_examples(query, k=2)
 
         prompt = ChatPromptTemplate.from_template("""
-        당신은 포춘 500대 기업의 최고 AI 컴플라이언스 책임자(CCO)이자 글로벌 최고 수준의 법률 고문입니다.
-        아래 제공된 [이전 대화 기록]의 문맥을 파악하고, 오직 [Context]에 있는 실제 법안 정보만을 바탕으로 [사용자 질문]에 대해 가장 전문적이고 깊이 있는 법률 컨설팅을 제공하십시오.
+        당신은 기업의 최고 AI 컴플라이언스 책임자(CCO)입니다.
+        오직 아래 제공된 [Context]의 내용만을 사용하여 [사용자 질문]에 대해 최고 수준의 법률 컨설팅 답변을 작성하십시오. 당신이 학습한 사전 지식은 절대 사용하지 마십시오.
 
         [데이터 분석 및 출력 필수 지침 🚨]
-        1. Context 엄수: [Context]의 '내용(Chunk)'과 '관련 구조(Graph)'에 있는 텍스트를 모두 분석하십시오. 특히 [상세:], [금액:], [유형:] 등의 구체적인 데이터는 절대 누락하지 마십시오. 금액이 없다면 "관련 법률상 구체적인 금액이 명시되어 있지 않으나, 법적 제재 리스크가 존재합니다"라고 명확히 기재하십시오.
-        2. 전문적인 어투: 확신에 찬 전문가의 어투를 사용하며, 설명 중 반드시 "유럽 인공지능법(EU AI Act) 제O조에 따르면~"과 같이 구체적인 법적 근거를 텍스트에 자연스럽게 녹여내십시오.
+        1. 내용 창조 절대 금지: 제공된 데이터에 명시적으로 존재하지 않는 법안명, 조항 번호, 금액, 특정 의무 사항, 벌칙은 절대 지어내지 마십시오.
+        2. 모순된 정보 출력 금지: 질문에서 묻는 내용이 제공된 데이터에 없다면 억지로 지어내지 마십시오. 반대로, 정보가 존재하여 작성해 놓고 그 옆에 "(명시되지 않음)"이나 "(확인 불가)"라는 말을 동시에 적는 바보 같은 짓을 절대 하지 마십시오.
+        3. 예시 베끼기 금지: [참고 예시]는 오직 '어투와 전개 방식'만 참고하고, 예시의 내용은 절대 베끼지 마십시오.
+        4. 기계 말투 절대 금지 🚨: 답변을 작성할 때 화면에 절대 "[Context]", "제공된 데이터", "검색된 문서" 같은 시스템적인 단어를 출력하지 마십시오. 정보가 없을 경우 반드시 "관련 법률상 명시되어 있지 않습니다" 또는 "현행 규정에서는 확인되지 않습니다"라고 실제 사람(법률 고문)처럼 자연스럽게 답변하십시오.
 
-        [답변 구조 및 포맷 지침 (절대 준수!)]
-        당신의 답변은 반드시 아래 제시된 형태와 순서대로 출력되어야 합니다. (안내 문구나 괄호는 출력하지 마십시오.)
+        [답변 구조 및 포맷 지침]
+        아래 형식과 순서를 엄격히 지켜 답변하십시오. (주의: '본문', '1문단' 같은 안내용 괄호나 단어는 화면에 절대 출력하지 마십시오.)
 
-        (이 위치에 상세 본문 2문단 이상 작성)
-        - 1문단: 해당 AI 시스템의 규제 대상 및 등급 분류 여부, 그리고 왜 그렇게 분류되는지(이유)를 Context를 바탕으로 상세히 설명하십시오.
-        - 2문단: 기업이 시장 출시 전/후에 준수해야 할 '핵심 의무(투명성, 데이터 관리 등)'와 '위반 시 리스크'를 구체적으로 설명하십시오.
+        (이 위치에 자연스러운 줄글 형태로 상세 답변을 작성하십시오. 🚨 절대 단락 시작 부분에 '-', '*', 숫자 등의 기호를 붙이지 말고, 일반적인 보고서/에세이 산문 형태로 작성하십시오.)
+        질문에 대한 '핵심 결론'을 가장 먼저 명쾌하게 제시하는 두괄식으로 시작하십시오.
+        질문이 두 개 이상의 법안(예: 한국 AI 기본법과 유럽 AI Act)의 관계나 연결성을 묻는다면, 먼저 각 법안의 기준을 구체적으로 설명하십시오. 그 후, 이들이 어떻게 연결되는지, 실무적으로 서비스 도입 시 어떤 부분을 상호 보완해야 하는지 논리적으로 분석해 답변하십시오.
+        해당 AI 시스템의 '규제 대상 및 등급 분류 여부', 기업이 지켜야 할 '핵심 의무', '위반 리스크'를 필수적으로 포함하여 설명하십시오.
 
-        (이 위치에 추가 정보 요청 작성 - 필수)
-        - 사용자의 질문에 서비스 국가, 데이터 수집 범위(생체 데이터 등), 인간 개입 여부 중 하나라도 명확하지 않다면 반드시 아래와 같은 형태의 역질문을 생성하십시오.
-        - 💡 중요: 질문이 포괄적일 경우, **반드시 2개 이상**의 구체적인 확인 사항을 불릿 포인트(`*`) 리스트로 작성하십시오.
-        - 💡 중요: 절대 명사형 종결어미(예: '~여부')로 끝내지 마십시오. 반드시 자연스러운 대화형 질문 형태(예: "~하나요?", "~인가요?")로 끝내십시오.
-        - 도입부 예시: "더욱 정확한 맞춤형 규제 리스크를 진단해 드리기 위해, 추가로 확인이 필요한 사항들이 있습니다. 혹시 아래 내용에 대해 조금 더 자세히 알려주실 수 있을까요?"
+        (줄바꿈 후 역질문 작성 - 필수)
+        더욱 정확한 맞춤형 규제 리스크를 진단하기 위해, 추가로 확인이 필요한 사항은 다음과 같습니다.
+        * (구체적인 확인 사항 1 - 반드시 '~인가요?', '~합니까?' 등 자연스러운 대화형/질문형 종결어미 사용)
+        * (구체적인 확인 사항 2 - 반드시 '~인가요?', '~합니까?' 등 자연스러운 대화형/질문형 종결어미 사용)
 
-        ---
-        [요약 및 참고]
-        - 규제 대상: (핵심만 명사형으로 요약)
-        - 핵심 의무: (핵심만 명사형으로 요약)
-        - 위반 리스크: (핵심만 명사형으로 요약)
-        - 근거 조항: (참조한 법안 및 조항 번호)
+        (줄바꿈 후 요약 작성 - 필수)
+        - 규제 대상: 확인된 핵심 요약
+        - 핵심 의무: 확인된 핵심 요약 (정보가 없을 경우에만 "관련 법률상 명시되어 있지 않음"이라고 기재)
+        - 위반 리스크: 확인된 핵심 요약 (정보가 없을 경우에만 "관련 법률상 명시되어 있지 않음"이라고 기재)
+        - 근거 조항: 확인된 등장 법안 및 조항 번호 (정보가 없을 경우에만 "관련 법률상 명시되어 있지 않음"이라고 기재)
+        💡 주의: 요약 내용에 법안명이나 조항을 이미 작성해 놓고 그 옆에 "(명시되지 않음)"을 덧붙이는 행위를 절대 금지합니다.
         
         [이전 대화 기록]
         {history_text}
 
-        [참고 예시 (어투와 논리 전개 방식을 참고하십시오)]
+        [참고 예시 (어투와 전문적인 형식만 참고할 것. 내용 베끼기 절대 금지!)]
         {few_shot_examples}
         
         [실제 법안 데이터 (Context)]
@@ -251,7 +268,7 @@ class AIComplianceRAG:
 
         chain = prompt | self.llm | StrOutputParser()
         answer = chain.invoke({
-            "history_text": history_text,  # 💡 프롬프트 변수에 주입
+            "history_text": history_text,
             "context": context, 
             "query": query,
             "few_shot_examples": few_shot_examples if few_shot_examples else "별도 예시 없음."
@@ -269,8 +286,7 @@ if __name__ == "__main__":
     print("⚙️ AI Compliance Advanced RAG 엔진 가동 중...")
     rag = AIComplianceRAG()
     
-    test_question = "한국 AI 기본법에서 말하는 '고영향 AI' 기준이랑, 유럽 AI Act의 고위험 AI 기준이 어떻게 연결돼? 한국에서 서비스할 때 유럽 법안의 어떤 부분을 보완해서 참고해야 할까?"
-    #"유럽에서 신입사원 채용 면접을 분석하는 AI 시스템을 도입하려고 해. 이거 고위험 AI에 해당해? 그리고 위반하면 어떤 벌칙이 있어?"
+    test_question = "유럽 지사 채용 과정에서 지원자의 표정과 목소리 톤을 분석해서 스트레스 저항성을 평가하는 AI 면접 툴을 전면 도입하려고 합니다. 위반 시 페널티와 미리 준비해야 할 사항이 궁금합니다."
     
     answer, context = rag.generate_answer(test_question)
     
