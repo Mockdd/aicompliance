@@ -30,6 +30,25 @@ st.markdown("""
 
 * { box-sizing: border-box; }
 
+/* ── 채팅 입력창 하단 면책 고지 (입력창 바깥으로 완전 분리) ── */
+[data-testid="stChatInput"] {
+    position: relative !important;
+    margin-bottom: 35px !important; /* 안쪽이 아닌 '바깥쪽' 아래에 35px의 빈 공간을 강제로 만듦 */
+}
+
+[data-testid="stChatInput"]::after {
+    content: "AI Compliance Checker는 AI이며 법률 정보 제공 시 실수를 할 수 있습니다. 최종 의사결정 전 반드시 법률 전문가와 교차 검증하시기 바랍니다.";
+    position: absolute;
+    bottom: -28px; /* 마이너스 값을 주어 입력창 테두리 밖으로 텍스트를 완전히 끌어내림 */
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-size: 12px;
+    color: #999999;
+    word-break: keep-all;
+    pointer-events: none;
+}     
+
 /* ── 기본 테마 및 폰트 ── */
 html, body, .stApp {
     font-family: 'Pretendard', -apple-system, sans-serif !important;
