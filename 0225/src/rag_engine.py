@@ -215,7 +215,6 @@ class AIComplianceRAG:
             formatted_context.append(context_piece)
             seen_chunks.add(res['chunk_text'])
 
-        # 💡 [핵심 버그 수정 완료]: DB의 ID가 'Korea AI Law::Article 2' 형태일 수 있으므로 ENDS WITH를 사용하여 완벽하게 낚아챕니다!
         print("🛡️ 필수 기초 조항(정의/의무) 하드캐리 주입 중...")
         essential_cypher = """
         MATCH (parent)-[:HAS_CHUNK]->(chunk)
