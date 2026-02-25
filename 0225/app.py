@@ -270,12 +270,23 @@ details summary {
     color: #1B4FD8 !important; padding: 6px 0 !important;
 }
 /* 💡 아래 여백(bottom)만 20px로 확 줄여서 쫀쫀하게 만듦 (위 64, 오/왼 20, 아래 20) */
-.empty-state { text-align: center; padding: 40px 20px 0px 20px; color: #94A3B8; }
+.empty-state { text-align: center; padding: 60px 20px 0px 20px; color: #94A3B8; }
 .empty-state-icon { font-size: 3rem; margin-bottom: 14px; }
 .empty-state h3 { font-size: 1.2rem; font-weight: 700; color: #1E293B; margin-bottom: 8px; }
 .empty-state p { font-size: 0.92rem; line-height: 1.65; }
 hr { border-color: #E2E8F8 !important; margin: 1.5rem 0 !important; }
 div[data-testid="stStatusWidget"] { display: none !important; }
+            
+/* 1. 하단 푸터(Made with Streamlit) 공간 완전 삭제 */
+footer {
+    display: none !important; 
+}
+
+/* 2. 채팅 입력창을 강제로 바닥으로 끌어내리기 */
+div[data-testid="stChatInput"] {
+    padding-bottom: 0px !important;
+    margin-bottom: -30px !important; /* 👈 핵심! 마이너스(-) 값을 주면 강제로 바닥으로 꺼집니다 */
+}
 </style>
 """, unsafe_allow_html=True)
 
