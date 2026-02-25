@@ -71,21 +71,22 @@ section[data-testid="stSidebar"] > div:first-child {
     margin-bottom: 0 !important;
 }
 .sb-logo-icon {
-    width: 48px; height: 48px; 
+    width: 52px; height: 52px; 
     flex-shrink: 0; 
     background: linear-gradient(135deg, #1B4FD8, #3B82F6);
     border-radius: 12px; display: flex; align-items: center; justify-content: center;
-    font-size: 1.4rem; color: white;
+    font-size: 1.6rem; color: white;
     box-shadow: 0 4px 12px rgba(27,79,216,0.2);
 }
 .sb-logo-text {
-    height: 48px; 
+    height: 52px; 
     display: flex; flex-direction: column; 
+    gap: 2px;
     justify-content: space-between; 
     padding: 4px 0 2px 0; 
 }
-.sb-logo-name { font-size: 1.1rem; font-weight: 800; color: #1B4FD8; line-height: 1.1; margin: 0;} 
-.sb-logo-sub  { font-size: 0.8rem; color: #94A3B8; line-height: 1.1; margin: 0;}
+.sb-logo-name { font-size: 1.1rem; font-weight: 800; color: #1B4FD8; line-height: 1.1; margin: 0; margin-top: -3px !important;} 
+.sb-logo-sub  { font-size: 0.75rem; color: #94A3B8; line-height: 1.2; margin: 0;}
 
 /* ── 사이드바 버튼 & 예시질문 ── */
 .sidebar-title-wrapper {
@@ -122,6 +123,13 @@ section[data-testid="stSidebar"] .stButton > button:hover {
     transform: translateY(-2px);
 }
 
+/* 🚨 스트림릿 버튼 속 숨겨진 글씨(p 태그) 크기 강제 축소 🚨 */
+section[data-testid="stSidebar"] .stButton > button p {
+    font-size: 0.9rem !important; /* 👈 여기서 원하시는 크기로 조절하세요! (예: 0.7rem, 0.75rem) */
+    line-height: 1.4 !important; /* 글씨가 여러 줄일 때 줄 간격 */
+    margin: 0 !important;
+}
+            
 /* ── 메인 컨텐츠 영역 ── */
 .block-container {
     padding-top: 3.5rem !important; 
@@ -265,7 +273,7 @@ details summary {
 .empty-state { text-align: center; padding: 40px 20px 0px 20px; color: #94A3B8; }
 .empty-state-icon { font-size: 3rem; margin-bottom: 14px; }
 .empty-state h3 { font-size: 1.2rem; font-weight: 700; color: #1E293B; margin-bottom: 8px; }
-.empty-state p { font-size: 1.0rem; line-height: 1.65; }
+.empty-state p { font-size: 0.92rem; line-height: 1.65; }
 hr { border-color: #E2E8F8 !important; margin: 1.5rem 0 !important; }
 div[data-testid="stStatusWidget"] { display: none !important; }
 </style>
@@ -385,7 +393,8 @@ with st.sidebar:
         <div class="sb-logo-icon">🪄</div>
         <div class="sb-logo-text">
             <div class="sb-logo-name">AI Compliance Checker</div>
-            <div class="sb-logo-sub">AI 규제 검토 어시스턴트</div>
+            <div class="sb-logo-sub">AI 비즈니스 및 서비스 도입을 위한<br>
+                규제 검토 어시스턴트</div>
         </div>
     </div>""", unsafe_allow_html=True)
 
@@ -398,10 +407,10 @@ with st.sidebar:
     """, unsafe_allow_html=True)
 
     examples = [
-        "채용 AI가 고위험으로 분류되나요?",
-        "생체인식 AI의 EU 내 사용 조건은?",
-        "고위험 AI 시스템의 적합성 평가 절차",
-        "AI 규정 위반 시 최대 과징금은?",
+        "인사 평가 시스템에 AI를 연동하면 고위험 AI에 해당하나요?",
+        "유럽 시장에 안면 인식 AI 서비스를 출시할 때 주의할 점은?",
+        "국내 고객센터에 생성형 AI를 도입할 때 지켜야 할 인공지능기본법상 의무는?",
+        "AI 규정을 위반할 경우 기업이 받을 수 있는 페널티나 과징금은?",
     ]
     for ex in examples:
         if st.button(ex, key=f"ex_{ex[:14]}", use_container_width=True):
@@ -423,13 +432,13 @@ st.markdown("""
     <div class="app-header-icon">🪄</div>
     <div class="app-header-text">
         <h1>AI COMPLIANCE CHECKER</h1>
-        <p>EU AI Act · 한국 AI 기본법 기반 규제 검토 및 의무 사항 안내</p>
+        <p>EU AI Act · 한국 인공지능기본법 기반 AI 시스템 규제 진단 및 의무 사항 안내</p>
     </div>
 </div>
 """, unsafe_allow_html=True)
 
 prefill = st.session_state.pop("prefill", None)
-placeholder_text = prefill if prefill else "규제가 궁금한 AI 시스템에 대해 질문하세요..."
+placeholder_text = prefill if prefill else "도입하려는 AI 시스템의 기능, 목적, 타겟 국가 등을 자세히 입력해 보세요..."
 user_input = st.chat_input(placeholder_text)
 
 if prefill and not user_input:
@@ -447,9 +456,9 @@ if not st.session_state.messages:
     st.markdown("""
     <div class="empty-state">
         <div class="empty-state-icon">⚖️</div>
-        <h3>무엇이든 질문하세요</h3>
-        <p>EU AI Act 및 한국 인공지능기본법 관련 규제 여부, 의무 사항, 위반 시 벌칙 등<br>
-        AI 컴플라이언스에 관한 질문에 참고 조항과 함께 답변해드립니다.</p>
+        <h3>어떤 AI 시스템 도입을 검토 중이신가요?</h3>
+        <p>신규 AI 서비스를 기획하거나 기존 시스템에 AI 연동을 준비 중이시라면, 적용하려는 국가와 기술(목적)을 알려주세요.<br>
+        EU AI Act 및 한국 인공지능기본법을 바탕으로 규제 등급, 핵심 의무, 위반 리스크를 명확한 법적 근거와 함께 진단해 드립니다.</p>
     </div>""", unsafe_allow_html=True)
 else:
     st.markdown('<div class="chat-wrapper">', unsafe_allow_html=True)
@@ -458,7 +467,7 @@ else:
     st.markdown('</div>', unsafe_allow_html=True)
 
 if user_input and user_input.strip():
-    with st.spinner("관련 조항을 분석하는 중..."):
+    with st.spinner("관련 법령을 바탕으로 규제 리스크를 분석하고 있습니다..."):
         result = call_chat(question)
 
     if "error" in result:
