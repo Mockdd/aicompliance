@@ -165,7 +165,7 @@ section[data-testid="stSidebar"] .stButton > button p {
     color: #1B4FD8 !important; letter-spacing: -0.5px;
     line-height: 1.0 !important; 
     margin: 0 !important; 
-    margin-top: -15px !important; 
+    margin-top: -18px !important; 
 }
 .app-header p {
     font-size: 0.95rem !important; 
@@ -344,6 +344,68 @@ def render_sources_html(sources: List[Dict]) -> str:
         </div>"""
     return html
 
+def is_source_referenced(raw_id: str, content: str) -> bool:
+    """조항 번호뿐만 아니라 '어느 법안'인지 문맥을 역추적하여 교차 검증하는 스마트 함수"""
+    content_lower = content.lower()
+    raw_id_lower = raw_id.lower()
+    
+    # 원본 ID에서 법안명과 조항 번호 분리 (예: "Korea AI Law", "Article 2")
+    law_name = raw_id.split("::")[0].strip().lower() if "::" in raw_id else ""
+    article_num = raw_id.split("::")[-1].strip().lower() if "::" in raw_id else raw_id_lower
+    
+    is_eu = "eu" in law_name or "europe" in law_name or "유럽" in law_name
+    is_kr = "korea" in law_name or "한국" in law_name or "기본법" in law_name
+    
+    # 1. 완전 일치 방어 (예: "Korea AI Law::Article 2" 자체가 텍스트에 있을 때)
+    if raw_id_lower in content_lower:
+        return True
+        
+    patterns_to_check = []
+    
+    # 정규식 패턴 생성
+    art_match = re.search(r'article\s+(\d+)', article_num)
+    if art_match:
+        num = art_match.group(1)
+        patterns_to_check.extend([rf"제\s*{num}\s*조", rf"article\s*{num}"])
+        
+    annex_match = re.search(r'annex\s+([ivx]+|\d+)', article_num)
+    if annex_match:
+        val = annex_match.group(1)
+        roman_to_arabic = {'i': '1', 'ii': '2', 'iii': '3', 'iv': '4', 'v': '5', 'vi': '6'}
+        arabic = roman_to_arabic.get(val, val)
+        patterns_to_check.extend([rf"부속서\s*{arabic}", rf"annex\s*{arabic}", rf"부속서\s*{val}", rf"annex\s*{val}"])
+        
+    recital_match = re.search(r'recital\s+(\d+)', article_num)
+    if recital_match:
+        num = recital_match.group(1)
+        patterns_to_check.extend([rf"recital\s*{num}", rf"리사이틀\s*{num}"])
+        
+    if not patterns_to_check:
+        return article_num in content_lower
+        
+    # 2. 본문에서 해당 번호(예: 제2조)가 등장할 때마다 어느 법안인지 교차 검증!
+    for pattern in patterns_to_check:
+        for match in re.finditer(pattern, content_lower):
+            idx = match.start()
+            
+            # 조항 번호 등장 위치에서 역방향으로 가장 가까운 EU/한국 키워드 탐색
+            eu_idx = max(content_lower.rfind("eu", 0, idx), content_lower.rfind("유럽", 0, idx))
+            kr_idx = max(content_lower.rfind("한국", 0, idx), content_lower.rfind("기본법", 0, idx))
+            
+            # 이 "제2조"가 과연 EU법인가 한국법인가?
+            if is_kr:
+                if kr_idx >= eu_idx or kr_idx != -1: # 한국법 키워드가 더 가깝거나 존재하면 합격
+                    if kr_idx >= eu_idx:
+                        return True
+            elif is_eu:
+                if eu_idx >= kr_idx or eu_idx != -1: # EU법 키워드가 더 가깝거나 존재하면 합격
+                    if eu_idx >= kr_idx:
+                        return True
+            else:
+                return True # 법안 식별이 불가능한 예외 케이스
+                
+    return False
+
 def render_message(msg: Dict):
     role = msg["role"]
     content = msg["content"]
@@ -369,14 +431,15 @@ def render_message(msg: Dict):
         st.markdown(f"""
         <div class="msg-ai-row">
             <div class="msg-ai-content">
-                <div class="msg-ai-name">AI Compliance Assistant</div>
+                <div class="msg-ai-name">AI Compliance Checker</div>
                 <div class="msg-ai-bubble">{display_content}</div>
                 <div class="msg-time" style="margin-top:5px;">{t}</div>
             </div>
         </div>""", unsafe_allow_html=True)
 
         if sources:
-            filtered_sources = []
+            grouped_sources = {}
+            
             for src in sources:
                 raw_id = src.get("source_id", "")
                 excerpt = src.get("excerpt", "")
@@ -384,11 +447,19 @@ def render_message(msg: Dict):
                 if len(excerpt.strip()) < 15 or excerpt.strip().lower() in raw_id.strip().lower():
                     continue
                 
-                article_num = raw_id.split("::")[-1] if "::" in raw_id else raw_id
-                numbers = re.findall(r'\d+', article_num)
+                # 💡 [핵심 수정 1]: 병합 키(Key)를 조항 번호가 아닌 '법안명+조항번호' 전체로 설정해 덮어쓰기 방지!
+                group_key = raw_id.strip().upper()
                 
-                if article_num in content or any(num in content for num in numbers):
-                    filtered_sources.append(src)
+                # 💡 [핵심 수정 2]: 이제 is_source_referenced 함수에 raw_id 전체를 넘겨줍니다.
+                if is_source_referenced(raw_id, content):
+                    if group_key not in grouped_sources:
+                        grouped_sources[group_key] = src.copy()
+                    else:
+                        existing_excerpt = grouped_sources[group_key]["excerpt"]
+                        if excerpt not in existing_excerpt and existing_excerpt not in excerpt: 
+                            grouped_sources[group_key]["excerpt"] = existing_excerpt + "<br><br>[이어진 내용] " + excerpt
+            
+            filtered_sources = list(grouped_sources.values())
             
             if filtered_sources:
                 label = f"참고 조항 {len(filtered_sources)}건"
@@ -421,7 +492,7 @@ with st.sidebar:
         "인사 평가 시스템에 AI를 연동하면 고위험 AI에 해당하나요?",
         "유럽 시장에 안면 인식 AI 서비스를 출시할 때 주의할 점은?",
         "국내 고객센터에 생성형 AI를 도입할 때 지켜야 할 인공지능기본법상 의무는?",
-        "AI 규정을 위반할 경우 기업이 받을 수 있는 페널티나 과징금은?",
+        "회사가 보유한 데이터를 사용자의 명시적인 동의 없이 학습에 이용할 경우 페널티나 과징금은?",
     ]
     for ex in examples:
         if st.button(ex, key=f"ex_{ex[:14]}", use_container_width=True):
