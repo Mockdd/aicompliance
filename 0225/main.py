@@ -79,12 +79,12 @@ def parse_sources(raw_context: str) -> List[SourceReference]:
         if not block:
             continue
             
-        # 💡 첫 줄(헤더)과 나머지(본문) 분리
+        # 첫 줄(헤더)과 나머지(본문) 분리
         parts = block.split("\n", 1)
         header_line = parts[0].replace("---", "").strip()
         body = parts[1] if len(parts) > 1 else ""
 
-        # 💡 정규식(DOTALL)으로 '내용(Chunk):' 부터 다음 섹션 전까지 모든 줄 추출!
+        # 정규식(DOTALL)으로 '내용(Chunk):' 부터 다음 섹션 전까지 모든 줄 추출
         chunk_match = re.search(r"내용\(Chunk\):\s*(.*?)(?:\n관련 구조\(Graph\):|$)", body, re.DOTALL)
         chunk_text = chunk_match.group(1).strip() if chunk_match else ""
 

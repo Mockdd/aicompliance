@@ -22,7 +22,7 @@ st.set_page_config(
 )
 
 # ─────────────────────────────────────────
-# CSS - UI 고도화 & 광학적 밸런스 정렬 패치
+# CSS
 # ─────────────────────────────────────────
 st.markdown("""
 <style>
@@ -40,10 +40,10 @@ html, body, .stApp {
     color: #1a1f36 !important;
 }
 
-/* ── 1. 스트림릿 순정 헤더 복구 (사이드바 버튼 증발 완벽 해결!) ── */
+/* ── 헤더 ── */
 .stDeployButton { display: none !important; }
 
-/* 💡 모든 제목 태그에 붙는 불필요한 링크(🔗) 완전 박멸 */
+/* 모든 제목 태그에 붙는 불필요한 링크 없애기 */
 a.header-anchor, h1 a, h2 a, h3 a, h4 a, h5 a, h6 a { 
     display: none !important; 
     pointer-events: none !important; 
@@ -62,7 +62,7 @@ section[data-testid="stSidebar"] > div:first-child {
     padding-bottom: 1.5rem !important; 
 }
 
-/* ── 2. 사이드바 로고 영역 (만족하신 코드 그대로 영구 보존) ── */
+/* ── 2. 사이드바 로고 영역 ── */
 .sb-logo {
     display: flex; align-items: center; gap: 14px;
     margin-top: -1.5rem !important; 
@@ -123,10 +123,10 @@ section[data-testid="stSidebar"] .stButton > button:hover {
     transform: translateY(-2px);
 }
 
-/* 🚨 스트림릿 버튼 속 숨겨진 글씨(p 태그) 크기 강제 축소 🚨 */
+/* 스트림릿 버튼 속 숨겨진 글씨(p 태그) 크기 강제 축소 */
 section[data-testid="stSidebar"] .stButton > button p {
-    font-size: 0.9rem !important; /* 👈 여기서 원하시는 크기로 조절하세요! (예: 0.7rem, 0.75rem) */
-    line-height: 1.4 !important; /* 글씨가 여러 줄일 때 줄 간격 */
+    font-size: 0.9rem !important;
+    line-height: 1.4 !important;
     margin: 0 !important;
 }
             
@@ -172,8 +172,6 @@ section[data-testid="stSidebar"] .stButton > button p {
     color: #64748B; 
     line-height: 1.0 !important;
     margin: 0 !important; 
-    
-    /* 💡 강력한 치트키 발동! */
     position: relative !important;
     top: -5px !important; 
 }
@@ -269,7 +267,7 @@ details summary {
     font-size: 0.95rem !important; font-weight: 600 !important;
     color: #1B4FD8 !important; padding: 6px 0 !important;
 }
-/* 💡 아래 여백(bottom)만 20px로 확 줄여서 쫀쫀하게 만듦 (위 64, 오/왼 20, 아래 20) */
+
 .empty-state { text-align: center; padding: 60px 20px 0px 20px; color: #94A3B8; }
 .empty-state-icon { font-size: 3rem; margin-bottom: 14px; }
 .empty-state h3 { font-size: 1.2rem; font-weight: 700; color: #1E293B; margin-bottom: 8px; }
@@ -282,10 +280,10 @@ footer {
     display: none !important; 
 }
 
-/* 2. 채팅 입력창을 강제로 바닥으로 끌어내리기 */
+/* 2. 채팅 입력창을 바닥으로 끌어내리기 */
 div[data-testid="stChatInput"] {
     padding-bottom: 0px !important;
-    margin-bottom: -30px !important; /* 👈 핵심! 마이너스(-) 값을 주면 강제로 바닥으로 꺼집니다 */
+    margin-bottom: -30px !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -447,10 +445,10 @@ def render_message(msg: Dict):
                 if len(excerpt.strip()) < 15 or excerpt.strip().lower() in raw_id.strip().lower():
                     continue
                 
-                # 💡 [핵심 수정 1]: 병합 키(Key)를 조항 번호가 아닌 '법안명+조항번호' 전체로 설정해 덮어쓰기 방지!
+                # 병합 키(Key)를 조항 번호가 아닌 '법안명+조항번호' 전체로 설정해 덮어쓰기 방지
                 group_key = raw_id.strip().upper()
                 
-                # 💡 [핵심 수정 2]: 이제 is_source_referenced 함수에 raw_id 전체를 넘겨줍니다.
+                # 이제 is_source_referenced 함수에 raw_id 전체를 넘겨줍니다.
                 if is_source_referenced(raw_id, content):
                     if group_key not in grouped_sources:
                         grouped_sources[group_key] = src.copy()
