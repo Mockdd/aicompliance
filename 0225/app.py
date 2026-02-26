@@ -326,7 +326,7 @@ def call_chat(question: str) -> Dict:
         r = requests.post(
             CHAT_ENDPOINT,
             json={"question": question, "history": history},
-            timeout=120,
+            timeout=600,
         )
         r.raise_for_status()
         return r.json()
