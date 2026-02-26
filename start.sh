@@ -6,7 +6,7 @@ pip install -r requirements.txt -q
 pip install uvicorn streamlit -q
 
 echo "🚀 FastAPI 서버 시작..."
-cd /workspaces/aicompliance/0225
+cd /workspaces/aicompliance/chatbot
 python -m uvicorn main:app --host 0.0.0.0 --port 8000 --timeout-keep-alive 300 &
 
 echo "⏳ FastAPI 준비 완료까지 대기 중..."
@@ -26,6 +26,6 @@ echo "✅ FastAPI 준비 완료! (${ELAPSED}s 소요)"
 
 echo "🎨 Streamlit 시작..."
 cd /workspaces/aicompliance
-python -m streamlit run 0225/app.py \
+python -m streamlit run chatbot/app.py \
     --server.port 8501 \
     --server.address 0.0.0.0
