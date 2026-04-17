@@ -9,7 +9,7 @@
 
 ```
 aicompliance/
-├── chatbot/                       # 🚀 서비스 메인 (실행 대상)
+├── chatbot/                       # 서비스 메인 (실행 대상)
 │   ├── app.py                     # Streamlit 프론트엔드 UI
 │   ├── main.py                    # FastAPI 백엔드 서버
 │   ├── .streamlit/
@@ -21,7 +21,7 @@ aicompliance/
 │       ├── batch_test_rag.py      # 스트레스 테스트 스크립트 (OOD · 모호한 질의 등)
 │       └── evaluate_rag.py        # Ragas 기반 성능 평가 스크립트
 │
-├── src/                           # 📦 데이터 전처리 파이프라인
+├── src/                           # 데이터 전처리 파이프라인
 │   ├── ingest_EU_legal.py         # EU AI Act HTML 파싱 및 청킹
 │   ├── ingest_KR_legal.py         # 한국 AI 기본법 PDF 파싱 및 청킹
 │   ├── extract_relations_aiact.py # EU AI Act 노드/릴레이션 추출
